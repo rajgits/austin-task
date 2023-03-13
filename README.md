@@ -1,66 +1,123 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
 
-## About Laravel
+# Payment Trial Period Test Task
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## There is two way we can develop this task
+- 1. By using Laravel Midleware 
+- 2. By using Laravel Controler 
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## step 1: Insatal laravel cashier
+### composer require laravel/cashier
 
-## Learning Laravel
+## Step 2: Run cashier migration 
+### php artisan vendor:publish --tag="cashier-migrations" 
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Step 3: Define Midleware 
+```php
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+    /**
+     * Handle an incoming request. 
+     *
+     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+         // Check if the user is subscribed to the 'default' plan
+        if ($user && $user->subscribed('default')) {
+             // Get the subscription for the 'default' plan
+            $subscription = $user->subscription('default');
+            // Check how many days are left until the subscription ends
+            $endsAt = $subscription->ends_at;
+            $diffInDays = $endsAt->diffInDays(now());
+            // If there are 30 or fewer days left until the subscription ends, extend the subscription by 30 days
+            if ($diffInDays <= 30) {
+                $subscription->skipTrial()->extend(now()->addDays(30));
+            }
+        }
+        return $next($request);
+        
+    }
+    ```
+    ### This logic checks whether the user is a paying customer or on a trial, and extends their access accordingly. If the user is a paying customer, the ends_at property of their subscription is updated to extend their billing schedule by 30 days. If the user is on a trial, the trial_ends_at property is updated to extend their trial period by 30 days.
+```
+## Step 4: Register the middleware
+```php
+protected $routeMiddleware = [
+    // ...
+    'extend.access' => \App\Http\Middleware\ExtendAccess::class,
+];
+```
+### Then depend either you can call this midleware from controler side or from Router side. in this example i used router group to call this
+```php
+//checking user trial on diferent controller from router group with midleware
+Route::group(['middleware'=>'trailcheck'],function(){
+    Route::get('dashboard', '\App\Http\Admin\Dashboard@trialTest')->name('dashboard');
+    Route::get('payment', \App\Admin\Payment::class)->name('payment');
+});
+```
+#### Note: You must include Billable trait in your userModel than only you can capable to call cahier or bilable functions in your midleware or controller (check user Model).
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 2000 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Step 5 : Unit test for Midleware with two condition expire and non expire time.
+```php
+public function testMiddlewareExpire()
+    {
+        // Create a mock authenticated user with a subscription that ends in 29 days
+        $user = new stdClass;
+        $user->id = 1;
+        $user->name = 'Test User';
+        $user->email = 'test@example.com';
+        $subscription = new stdClass;
+        $subscription->ends_at = now()->addDays(29);
+        $user->shouldReceive('subscribed')->with('default')->andReturn(true);
+        $user->shouldReceive('subscription')->with('default')->andReturn($subscription);
+        Auth::shouldReceive('user')->andReturn($user);
 
-## Laravel Sponsors
+        // Create a mock request and response
+        $request = new Request;
+        $response = new Response;
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+        // Create an instance of the middleware and call the handle method
+        $middleware = new ExtendTrialIfNearExpiration;
+        $result = $middleware->handle($request, function ($req) use ($response) {
+            return $response;
+        });
 
-### Premium Partners
+        // Assert that the subscription was extended by 30 days
+        $this->assertEquals(now()->addDays(59)->toDateString(), $subscription->ends_at->toDateString());
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[OP.GG](https://op.gg)**
-- **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
-- **[Lendio](https://lendio.com)**
+        // Assert that the request was passed through to the next middleware
+        $this->assertEquals($response, $result);
+    }
 
-## Contributing
+    public function testMiddlewareNotExpire()
+    {
+        // Create a mock authenticated user with a subscription that ends in 31 days
+        $user = new stdClass;
+        $user->shouldReceive('subscribed')->with('default')->andReturn(true);
+        $subscription = new stdClass;
+        $subscription->ends_at = now()->addDays(31);
+        $user->shouldReceive('subscription')->with('default')->andReturn($subscription);
+        Auth::shouldReceive('user')->andReturn($user);
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+        // Create a mock request and response
+        $request = new Request;
+        $response = new Response;
 
-## Code of Conduct
+        // Create an instance of the middleware and call the handle method
+        $middleware = new ExtendTrialIfNearExpiration;
+        $result = $middleware->handle($request, function ($req) use ($response) {
+            return $response;
+        });
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+        // Assert that the subscription was not extended
+        $this->assertEquals(now()->addDays(31)->toDateString(), $subscription->ends_at->toDateString());
 
-## Security Vulnerabilities
+        // Assert that the request was passed through to the next middleware
+        $this->assertEquals($response, $result);
+    } 
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```
+## In case any clarifications means please pass the commet on Git i will update here.

@@ -11,7 +11,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use Billable;
+    use Billable; // trait i am using
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
