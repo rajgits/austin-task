@@ -6,6 +6,7 @@
 - 1. By using Laravel Midleware 
 - 2. By using Laravel Controler 
 
+#### I will prefer to develop by midleware for this task.
 
 ## step 1: Insatal laravel cashier
 ### composer require laravel/cashier
@@ -120,4 +121,4 @@ public function testMiddlewareExpire()
     } 
 
 ```
-### In case any clarifications means please pass the commet on Git i will update here.
+#### In case any clarifications means please pass the commet on Git i will update here.
