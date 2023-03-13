@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+use Laravel\Cashier\Billable;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,6 +11,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
+    use Billable;
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
